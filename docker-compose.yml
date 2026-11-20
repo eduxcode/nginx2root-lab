@@ -1,0 +1,37 @@
+services:
+  target:
+    build:
+      context: ./target
+    image: n2r/target:1.31.8
+    container_name: n2r-target
+    hostname: target
+    networks:
+      - n2r
+    environment:
+      # 1 = master_process off: o SIGSEGV mata o PID 1 e o container
+      #     realmente para (Exited 139).  Use 0 para ver o master
+      #     reiniciando o worker, que e' o comportamento padrao do nginx.
+      N2R_SINGLE: "${N2R_SINGLE:-1}"
+    # sem restart: o alvo deve ficar caido depois do crash
+    restart: "no"
+    ports:
+      # publica apenas em loopback do host
+      - "127.0.0.1:8443:8443"
+
+  attacker:
+    build:
+      context: ./attacker
+    image: n2r/attacker:1.0
+    container_name: n2r-attacker
+    hostname: attacker
+    depends_on:
+      target:
+        condition: service_healthy
+    networks:
+      - n2r
+    tty: true
+    stdin_open: true
+
+networks:
+  n2r:
+    driver: bridge
