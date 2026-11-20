@@ -256,14 +256,12 @@ reserved for real failures (connection refused, no HTTP/2, unexpected ALPN).
 Output of a full run ending in the crash:
 
 ```
-[08] CRASH        proxima escrita usa tamanho negativo
-     ✓ conexao derrubada apos 1.72 MiB de DATA
-     ✓ worker do nginx morreu: ngx_memcpy com tamanho size_t gigantesco → SIGSEGV
-     ✓ o alvo NAO voltou a responder: fora do ar (objetivo do ataque)
-     ✓ cadeia completa: invariante quebrada, janela em 2^64, worker morto
+[08] CRASH        next write uses a negative size
+     ✓ connection dropped after 1.72 MiB of DATA
+     ✓ nginx worker died: ngx_memcpy with a huge size_t length → SIGSEGV
+     ✓ target did NOT respond again: it is down (attack goal reached)
+     ✓ full chain: invariant broken, window at 2^64, worker dead
 ```
-
-> The PoC's on-screen messages are currently in Portuguese.
 
 ## Reading the target log
 
@@ -328,7 +326,7 @@ short demo needs the accelerator, and why it is announced on screen.
 ## Memory corruption vs. RCE
 
 This lab proves **memory corruption**, not code execution. The full discussion
-is in [`docs/RCE.md`](docs/RCE.md) (currently in Portuguese).
+is in [`docs/RCE.md`](docs/RCE.md).
 
 **Demonstrated** with AddressSanitizer (`./scripts/rce-evidence.sh`):
 

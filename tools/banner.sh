@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Banner ASCII colorido do laboratorio nginx2root.
+# Colored ASCII banner for the nginx2root lab.
 # Uso: ./tools/banner.sh [--plain]
 set -u
 

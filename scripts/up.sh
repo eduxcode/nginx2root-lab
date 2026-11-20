@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Sobe o laboratorio (build + containers) e espera o alvo ficar healthy.
+# Brings the lab up (build + containers) and waits for the target to be healthy.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -7,18 +7,18 @@ cd "$(dirname "$0")/.."
 ./tools/banner.sh
 
 if [ ! -s target/src/nginx-1.31.8.tar.gz ]; then
-    echo "[erro] target/src/nginx-1.31.8.tar.gz nao encontrado" >&2
+    echo "[error] target/src/nginx-1.31.8.tar.gz not found" >&2
     exit 1
 fi
 
 echo
-echo "[n2r] construindo imagens (a primeira vez leva alguns minutos)"
+echo "[n2r] building images (the first run takes a few minutes)"
 docker compose build
 
-echo "[n2r] subindo containers"
+echo "[n2r] starting containers"
 docker compose up -d
 
-echo -n "[n2r] aguardando o alvo ficar healthy"
+echo -n "[n2r] waiting for the target to become healthy"
 healthy=0
 for _ in $(seq 1 60); do
     state="$(docker inspect -f '{{.State.Health.Status}}' n2r-target 2>/dev/null || echo starting)"
@@ -28,7 +28,7 @@ for _ in $(seq 1 60); do
         break
     fi
     if [ "$state" = "unhealthy" ]; then
-        echo " FALHOU"
+        echo " FAILED"
         docker compose logs --tail=80 target
         exit 1
     fi
@@ -45,5 +45,5 @@ fi
 echo
 docker compose ps
 echo
-echo "[n2r] alvo:    https://127.0.0.1:8443  (HTTP/2, TLS)"
-echo "[n2r] proximo: ./scripts/attack.sh --accelerate"
+echo "[n2r] target:  https://127.0.0.1:8443  (HTTP/2, TLS)"
+echo "[n2r] next:    ./scripts/attack.sh --accelerate"

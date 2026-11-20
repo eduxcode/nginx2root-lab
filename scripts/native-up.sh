@@ -1,17 +1,17 @@
 #!/usr/bin/env bash
-# Sobe o alvo nginx 1.31.8 SEM Docker (modo nativo).
+# Starts the nginx 1.31.8 target WITHOUT Docker (native mode).
 #
-# Compila o fonte vendorizado, gera TLS e huge.bin, e roda o nginx em
-# primeiro plano. O log do alvo sai neste terminal (stderr).
+# Builds the vendored source, generates TLS and huge.bin, and runs nginx in
+# the foreground. The target log is written to this terminal (stderr).
 #
-# Variaveis:
-#   N2R_PORT=8443     porta TLS
-#   N2R_SINGLE=1      master_process off (o worker E o processo
-#                     principal: o alvo cai de verdade no crash)
-#   N2R_ASAN=1        compila com AddressSanitizer (evidencia de
-#                     corrupcao de memoria; usa .n2r-asan/)
+# Variables:
+#   N2R_PORT=8443     TLS port
+#   N2R_SINGLE=1      master_process off (the worker IS the main
+#                     process: the target really goes down on crash)
+#   N2R_ASAN=1        builds with AddressSanitizer (memory-corruption
+#                     evidence; uses .n2r-asan/)
 #
-# Uso: ./scripts/native-up.sh
+# Usage: ./scripts/native-up.sh
 set -euo pipefail
 
 PROJECT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -38,27 +38,27 @@ SRC="$BUILD/nginx-$VERSION"
 die() { echo "[erro] $*" >&2; exit 1; }
 
 for tool in gcc make perl openssl python3 patch tar; do
-    command -v "$tool" >/dev/null 2>&1 || die "ferramenta ausente: $tool"
+    command -v "$tool" >/dev/null 2>&1 || die "missing tool: $tool"
 done
 
 [ -s "target/src/nginx-$VERSION.tar.gz" ] \
-    || die "target/src/nginx-$VERSION.tar.gz nao encontrado"
+    || die "target/src/nginx-$VERSION.tar.gz not found"
 
 mkdir -p "$BUILD" "$PREFIX"/conf "$PREFIX"/logs "$PREFIX"/html \
          "$PREFIX"/ssl "$PREFIX"/cache/client "$PREFIX"/cache/proxy \
          "$PREFIX"/cache/fastcgi "$PREFIX"/cache/uwsgi "$PREFIX"/cache/scgi
 
 # ------------------------------------------------------------------
-# build (uma vez por variante)
+# build (once per variant)
 # ------------------------------------------------------------------
 if [ ! -x "$SRC/objs/nginx" ]; then
     if [ ! -d "$SRC" ]; then
-        echo "[n2r] extraindo nginx $VERSION"
+        echo "[n2r] extracting nginx $VERSION"
         tar xzf "target/src/nginx-$VERSION.tar.gz" -C "$BUILD"
         ( cd "$SRC" && patch -p1 < "$PROJECT/target/n2r-instrument.patch" )
     fi
 
-    echo "[n2r] configurando e compilando (1-2 minutos)"
+    echo "[n2r] configuring and building (1-2 minutes)"
     CONFIG_ARGS=(
         --prefix="$PREFIX"
         --sbin-path="$PREFIX/sbin/nginx"
@@ -72,9 +72,9 @@ if [ ! -x "$SRC/objs/nginx" ]; then
     )
     CONFIG_ARGS+=("${EXTRA_CFG[@]}")
 
-    # Sem os headers do PCRE2 o modulo rewrite nao compila.
+    # Without the PCRE2 headers the rewrite module does not build.
     if [ ! -f /usr/include/pcre2.h ]; then
-        echo "[n2r] PCRE2 ausente: compilando sem rewrite/gzip (nao afeta o bug)"
+        echo "[n2r] PCRE2 missing: building without rewrite/gzip (does not affect the bug)"
         CONFIG_ARGS+=(--without-http_rewrite_module --without-http_gzip_module)
     fi
 
@@ -86,10 +86,10 @@ if [ ! -x "$SRC/objs/nginx" ]; then
 fi
 
 # ------------------------------------------------------------------
-# TLS e objeto grande
+# TLS and large object
 # ------------------------------------------------------------------
 if [ ! -s "$PREFIX/ssl/cert.pem" ] || [ ! -s "$PREFIX/ssl/key.pem" ]; then
-    echo "[n2r] gerando certificado self-signed"
+    echo "[n2r] generating self-signed certificate"
     openssl req -x509 -newkey rsa:2048 -nodes -days 3650 \
         -subj "/CN=nginx2root-lab" \
         -keyout "$PREFIX/ssl/key.pem" \
@@ -98,12 +98,12 @@ if [ ! -s "$PREFIX/ssl/cert.pem" ] || [ ! -s "$PREFIX/ssl/key.pem" ]; then
 fi
 
 if [ ! -s "$PREFIX/html/huge.bin" ]; then
-    echo "[n2r] gerando html/huge.bin (64 MiB)"
+    echo "[n2r] generating html/huge.bin (64 MiB)"
     head -c 67108864 /dev/zero > "$PREFIX/html/huge.bin"
 fi
 
 # ------------------------------------------------------------------
-# configuracao (caminhos absolutos)
+# configuration (absolute paths)
 # ------------------------------------------------------------------
 MASTER_LINE=""
 if [ "$SINGLE" = "1" ]; then
@@ -157,12 +157,12 @@ EOF
 
 echo
 mode="normal"
-[ "$SINGLE" = "1" ] && mode="single-process (o alvo cai no crash)"
+[ "$SINGLE" = "1" ] && mode="single-process (the target goes down on crash)"
 [ "$ASAN" = "1" ] && mode="$mode + AddressSanitizer"
-echo "[n2r] alvo nativo em https://127.0.0.1:$PORT  (HTTP/2, TLS)"
-echo "[n2r] modo: $mode"
-echo "[n2r] log do alvo neste terminal — Ctrl-C para parar"
-echo "[n2r] ataque no outro terminal: ./scripts/native-attack.sh"
+echo "[n2r] native target at https://127.0.0.1:$PORT  (HTTP/2, TLS)"
+echo "[n2r] mode: $mode"
+echo "[n2r] target log in this terminal — Ctrl-C to stop"
+echo "[n2r] attack from the other terminal: ./scripts/native-attack.sh"
 echo
 
 if [ "$ASAN" = "1" ]; then

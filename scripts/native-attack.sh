@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Executa o PoC contra o alvo nativo (sem Docker).
+# Runs the PoC against the native target (no Docker).
 #
-#   ./scripts/native-attack.sh                 # crash incluido
-#   ./scripts/native-attack.sh --no-accelerate # so os estagios 1-6
+#   ./scripts/native-attack.sh                 # crash included
+#   ./scripts/native-attack.sh --no-accelerate # stages 1-6 only
 #   ./scripts/native-attack.sh --probe
 set -uo pipefail
 

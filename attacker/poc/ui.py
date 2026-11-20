@@ -1,4 +1,4 @@
-"""Saida de terminal do laboratorio: estagios, cores e formatacao."""
+"""Terminal output for the lab: stages, colors and formatting."""
 
 from __future__ import annotations
 
@@ -53,7 +53,7 @@ def grey(t: str) -> str:
 
 
 def fmt(n: int) -> str:
-    return f"{n:,}".replace(",", ".")
+    return f"{n:,}"
 
 
 def human(n: int) -> str:

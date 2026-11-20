@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Derruba o laboratorio e remove as redes/containers do compose.
+# Tears down the lab and removes the compose networks/containers.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."

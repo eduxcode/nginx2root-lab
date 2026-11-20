@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Executa o PoC dentro do container atacante e mostra o log do alvo.
+# Runs the PoC inside the attacker container and shows the target log.
 #
-#   ./scripts/attack.sh                 # cadeia completa + estagio de crash
-#   ./scripts/attack.sh --no-accelerate # para no estagio 6 (sem crash)
-#   ./scripts/attack.sh --probe         # apenas fingerprint
+#   ./scripts/attack.sh                 # full chain + crash stage
+#   ./scripts/attack.sh --no-accelerate # stops at stage 6 (no crash)
+#   ./scripts/attack.sh --probe         # fingerprint only
 set -uo pipefail
 
 cd "$(dirname "$0")/.."
@@ -23,7 +23,7 @@ else
 fi
 
 echo
-echo "────────────────────────── log do alvo ──────────────────────────"
+echo "─────────────────────────── target log ──────────────────────────"
 docker compose logs --no-log-prefix --tail=400 target \
     | grep -aE '\[n2r\]|exited on signal|start worker process|signal 11' \
     | tail -n 24 \
@@ -32,12 +32,12 @@ echo "────────────────────────�
 
 state="$(docker inspect -f '{{.State.Status}} exit={{.State.ExitCode}}' n2r-target 2>/dev/null || true)"
 if [ -n "$state" ]; then
-    echo "estado do alvo: $state"
+    echo "target state: $state"
     if docker inspect -f '{{.State.Status}}' n2r-target 2>/dev/null | grep -qx exited; then
-        echo "o container do alvo parou: o processo do nginx morreu de verdade."
+        echo "the target container stopped: the nginx process really died."
     else
-        echo "o container continua de pe porque o master reiniciou o worker."
-        echo "suba com N2R_SINGLE=1 para o alvo cair (padrao do compose)."
+        echo "the container is still up because the master respawned the worker."
+        echo "start with N2R_SINGLE=1 so the target goes down (Compose default)."
     fi
 fi
 

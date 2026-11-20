@@ -1,4 +1,4 @@
-"""Banner ASCII colorido do laboratorio nginx2root."""
+"""Colored ASCII banner for the nginx2root lab."""
 
 from __future__ import annotations
 
@@ -30,7 +30,7 @@ def _rgb(r: int, g: int, b: int, text: str) -> str:
 
 
 def _gradient(text: str, row: int, rows: int) -> str:
-    # do vermelho (topo) ao ambar (base)
+    # red (top) to amber (bottom)
     t = row / max(rows - 1, 1)
     r = 255
     g = int(40 + t * 165)

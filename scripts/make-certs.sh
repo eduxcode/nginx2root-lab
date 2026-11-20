@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Gera um par TLS de laboratorio em target/ssl/ (uso opcional, fora do Docker).
+# Generates a lab TLS key pair in target/ssl/ (optional, outside Docker).
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -11,4 +11,4 @@ openssl req -x509 -newkey rsa:2048 -nodes -days 3650 \
     -out target/ssl/cert.pem
 
 chmod 600 target/ssl/key.pem
-echo "[n2r] certificado gerado em target/ssl/"
+echo "[n2r] certificate generated in target/ssl/"

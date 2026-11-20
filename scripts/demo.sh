@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Demo de ponta a ponta: sobe tudo e executa a cadeia com aceleracao.
+# End-to-end demo: brings everything up and runs the chain with the accelerator.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
