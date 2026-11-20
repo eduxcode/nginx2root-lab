@@ -79,9 +79,19 @@ primitive only; see [Memory corruption vs. RCE](#memory-corruption-vs-rce).
 | Fixed (Open Source) | **1.31.9** (mainline), **1.30.7** (stable) |
 | Fixed (NGINX Plus) | **37.3.0.1**, **37.0.8.1** |
 
-Related CVEs reported in the same release (not covered by this lab):
-`CVE-2026-123633`, `CVE-2026-123634`, `CVE-2026-121810`, `CVE-2026-113425`.
-`http2 off;` removes the vector for this CVE but not for all of them.
+Related CVEs published on the same day and fixed in the same releases (not
+covered by this lab). All four are use-after-free bugs (CWE-416), scored CVSS 4.0
+9.2 by F5 according to NVD:
+
+| CVE | Condition |
+|---|---|
+| [CVE-2026-123633](https://nvd.nist.gov/vuln/detail/CVE-2026-123633) | HTTP/2 for clients plus proxying to a backend, when the worker runs low on `worker_connections` |
+| [CVE-2026-123634](https://nvd.nist.gov/vuln/detail/CVE-2026-123634) | Proxy with variables in the server name and an SSI or `mirror` subrequest resolving to the same name |
+| [CVE-2026-121810](https://nvd.nist.gov/vuln/detail/CVE-2026-121810) | HTTP/3 |
+| [CVE-2026-113425](https://nvd.nist.gov/vuln/detail/CVE-2026-113425) | Mail proxy |
+
+`http2 off;` removes the vector for CVE-2026-123007 and the HTTP/2 condition of
+CVE-2026-123633, but not the other three.
 
 ## Root cause
 
