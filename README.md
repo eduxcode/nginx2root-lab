@@ -59,18 +59,25 @@ the worker with `SIGSEGV`.
 
 | | |
 |---|---|
-| **Class** | CWE-191 — Integer Underflow |
+| **Class** | CWE-191 (Integer Underflow), CWE-787 (Out-of-bounds Write) |
 | **Vector** | Network, unauthenticated, HTTP/2 over TLS or `h2c` |
-| **Impact** | Denial of service (worker `SIGSEGV`); heap overflow primitive |
+| **Severity** | CVSS 4.0 base score 9.2 (Critical), as scored by F5 |
+| **Impact** | Worker crash and heap corruption; NVD notes possible remote code execution when ASLR is disabled or bypassed |
 | **Component** | `ngx_http_v2_module` |
+
+The CVE was published on 2026-11-18 by F5. See the
+[NVD entry](https://nvd.nist.gov/vuln/detail/CVE-2026-123007) for the
+authoritative record. This lab demonstrates the crash and the memory-corruption
+primitive only; see [Memory corruption vs. RCE](#memory-corruption-vs-rce).
 
 ## Affected versions
 
 | Item | Value |
 |---|---|
-| Product | NGINX Open Source |
-| Affected range | **1.9.5 through 1.31.8** |
-| Fixed in | **1.31.9** (mainline), **1.30.7** (stable) |
+| Product | NGINX Open Source, NGINX Plus (with HTTP/2 enabled) |
+| Affected (Open Source) | **1.9.5 through 1.31.8** |
+| Fixed (Open Source) | **1.31.9** (mainline), **1.30.7** (stable) |
+| Fixed (NGINX Plus) | **37.3.0.1**, **37.0.8.1** |
 
 Related CVEs reported in the same release (not covered by this lab):
 `CVE-2026-123633`, `CVE-2026-123634`, `CVE-2026-121810`, `CVE-2026-113425`.
@@ -367,8 +374,9 @@ The attack uses valid frames, so it is easy to miss. Useful signals:
 
 ## Mitigation
 
-**Fix (recommended).** Upgrade to NGINX **1.31.9** or **1.30.7** (or later) and
-perform a full **restart**, not a reload:
+**Fix (recommended).** Upgrade to NGINX **1.31.9** or **1.30.7** (or later), or
+NGINX Plus **37.3.0.1** / **37.0.8.1**, and perform a full **restart**, not a
+reload:
 
 ```bash
 sudo apt update && sudo apt install --only-upgrade nginx
@@ -430,8 +438,11 @@ material and the 64 MiB `huge.bin`; both are git-ignored.
 
 - RFC 9113 — HTTP/2 (sections 5.2 and 6.9, flow control)
 - RFC 7541 — HPACK
-- NGINX 1.31.9 / 1.30.7 security advisories
-- CWE-191 — Integer Underflow
+- [NVD — CVE-2026-123007](https://nvd.nist.gov/vuln/detail/CVE-2026-123007)
+- [F5 advisory K000163926](https://my.f5.com/manage/s/article/K000163926)
+- [Fixing commit in nginx/nginx](https://github.com/nginx/nginx/commit/b89c4100bf6762a45e4a6463eaf4b70368277c94)
+- [nginx.org CHANGES](https://nginx.org/en/CHANGES)
+- CWE-191 (Integer Underflow), CWE-787 (Out-of-bounds Write)
 
 ## License and credits
 
